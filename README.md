@@ -34,3 +34,17 @@ new event.whenflagclicked(() => {
 const stacks = compiler(code);
 console.log(stacks[0].blocks);
 ```
+
+## 目录结构
+src/
+    dsl/                            // 一种专门用于Scratch的DSL
+        blocksStack/                // 积木段
+            blocksStack.js
+        scratchblocks/              // 用于生成Scratch积木
+            context.js
+            inputs.js
+            scratch_blocks.json
+        compiler.js                 // 编译器，把DSL转换为Scratch积木
+    agent/
+        core/
+    index.js

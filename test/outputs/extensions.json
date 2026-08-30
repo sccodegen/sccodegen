@@ -1,7 +1,7 @@
 [
   {
     "blocks": {
-      "tqlsdo8b422qf2x24mpsw": {
+      "szptpbrv4vhj96fp2ib49b": {
         "opcode": "video_on",
         "inputs": {
           "THRESHOLD": {
@@ -12,34 +12,35 @@
         },
         "fields": {},
         "shadow": false,
-        "id": "tqlsdo8b422qf2x24mpsw",
+        "id": "szptpbrv4vhj96fp2ib49b",
         "x": 0,
         "y": 0,
         "topLevel": true,
         "parent": null,
-        "next": "mbluxgkmticwdoczitcsap"
+        "next": "dtlks7nihgdwy1tvuukcno"
       },
-      "mbluxgkmticwdoczitcsap": {
+      "dtlks7nihgdwy1tvuukcno": {
         "opcode": "video_move",
-        "inputs": {},
-        "fields": {
+        "inputs": {
           "MOTION_MENU": {
             "name": "MOTION_MENU",
-            "value": "on"
+            "block": "on",
+            "shadow": "on"
           },
           "STATE_MENU": {
             "name": "STATE_MENU"
           }
         },
+        "fields": {},
         "shadow": false,
-        "next": "uvary1dz18qzu9o30uj0b",
-        "id": "mbluxgkmticwdoczitcsap",
+        "next": "6pabfcouza9g9shnrvvf",
+        "id": "dtlks7nihgdwy1tvuukcno",
         "x": 0,
         "y": 0,
         "topLevel": false,
-        "parent": "tqlsdo8b422qf2x24mpsw"
+        "parent": "szptpbrv4vhj96fp2ib49b"
       },
-      "uvary1dz18qzu9o30uj0b": {
+      "6pabfcouza9g9shnrvvf": {
         "opcode": "speakAndWait",
         "inputs": {
           "WORDS": {
@@ -50,37 +51,37 @@
         },
         "fields": {},
         "shadow": false,
-        "next": "28naz0mqvvhtlie99ws4h",
-        "id": "uvary1dz18qzu9o30uj0b",
+        "next": "d4fh7mg8akd0w90bzvdod",
+        "id": "6pabfcouza9g9shnrvvf",
         "x": 0,
         "y": 0,
         "topLevel": false,
-        "parent": "mbluxgkmticwdoczitcsap"
+        "parent": "dtlks7nihgdwy1tvuukcno"
       },
-      "hbj21zd77aq0krtij4q68mm": {
+      "ff0toz27l0b1q0fo6t6hay": {
         "opcode": "getTranslate",
         "inputs": {
           "WORDS": {
             "name": "WORDS",
             "block": "hello",
             "shadow": "hello"
-          }
-        },
-        "fields": {
+          },
           "LANGUAGE": {
             "name": "LANGUAGE",
-            "value": "es"
+            "block": "es",
+            "shadow": "es"
           }
         },
+        "fields": {},
         "shadow": false,
         "next": null,
-        "id": "hbj21zd77aq0krtij4q68mm",
+        "id": "ff0toz27l0b1q0fo6t6hay",
         "x": 0,
         "y": 0,
         "topLevel": false,
-        "parent": "uvary1dz18qzu9o30uj0b"
+        "parent": "6pabfcouza9g9shnrvvf"
       },
-      "28naz0mqvvhtlie99ws4h": {
+      "d4fh7mg8akd0w90bzvdod": {
         "opcode": "listenAndWait",
         "inputs": {
           "LISTEN": {
@@ -91,14 +92,14 @@
         },
         "fields": {},
         "shadow": false,
-        "next": "o05ujq0n5klhu7yhr456hc",
-        "id": "28naz0mqvvhtlie99ws4h",
+        "next": "dv1bc1r1zq8hd7yzj3y6f",
+        "id": "d4fh7mg8akd0w90bzvdod",
         "x": 0,
         "y": 0,
         "topLevel": false,
-        "parent": "uvary1dz18qzu9o30uj0b"
+        "parent": "6pabfcouza9g9shnrvvf"
       },
-      "6qs82nfzdkelq4l75aecw": {
+      "gh8kfzlipndg800pypfai": {
         "opcode": "math_number",
         "fields": {
           "NUM": {
@@ -109,36 +110,36 @@
         "inputs": {},
         "shadow": true,
         "next": null,
-        "id": "6qs82nfzdkelq4l75aecw",
+        "id": "gh8kfzlipndg800pypfai",
         "x": 0,
         "y": 0,
         "topLevel": false,
-        "parent": "o05ujq0n5klhu7yhr456hc"
+        "parent": "dv1bc1r1zq8hd7yzj3y6f"
       },
-      "o05ujq0n5klhu7yhr456hc": {
+      "dv1bc1r1zq8hd7yzj3y6f": {
         "opcode": "wedo2_motorOnFor",
         "inputs": {
-          "DURATION": {
-            "name": "DURATION",
-            "block": "6qs82nfzdkelq4l75aecw",
-            "shadow": "6qs82nfzdkelq4l75aecw"
-          }
-        },
-        "fields": {
           "MOTOR_ID": {
             "name": "MOTOR_ID",
-            "value": "motor A"
+            "block": "motor A",
+            "shadow": "motor A"
+          },
+          "DURATION": {
+            "name": "DURATION",
+            "block": "gh8kfzlipndg800pypfai",
+            "shadow": "gh8kfzlipndg800pypfai"
           }
         },
+        "fields": {},
         "shadow": false,
-        "next": "wg1k79lp3iin68829e1va",
-        "id": "o05ujq0n5klhu7yhr456hc",
+        "next": "rm58ccz0wat7rolq7okma8",
+        "id": "dv1bc1r1zq8hd7yzj3y6f",
         "x": 0,
         "y": 0,
         "topLevel": false,
-        "parent": "28naz0mqvvhtlie99ws4h"
+        "parent": "d4fh7mg8akd0w90bzvdod"
       },
-      "wg1k79lp3iin68829e1va": {
+      "rm58ccz0wat7rolq7okma8": {
         "opcode": "microbit_displayText",
         "inputs": {
           "TEXT": {
@@ -149,43 +150,44 @@
         },
         "fields": {},
         "shadow": false,
-        "next": "d0kg55tko8cxh7xisrukf7",
-        "id": "wg1k79lp3iin68829e1va",
+        "next": "z4xoef2p54mwhedrxgjmu",
+        "id": "rm58ccz0wat7rolq7okma8",
         "x": 0,
         "y": 0,
         "topLevel": false,
-        "parent": "o05ujq0n5klhu7yhr456hc"
+        "parent": "dv1bc1r1zq8hd7yzj3y6f"
       },
-      "d0kg55tko8cxh7xisrukf7": {
+      "z4xoef2p54mwhedrxgjmu": {
         "opcode": "boost_motorOff",
-        "inputs": {},
-        "fields": {
+        "inputs": {
           "MOTOR": {
             "name": "MOTOR",
-            "value": "motor A"
+            "block": "motor A",
+            "shadow": "motor A"
           }
         },
+        "fields": {},
         "shadow": false,
-        "next": "6xkcbsmeu63iqfvcmaihtb",
-        "id": "d0kg55tko8cxh7xisrukf7",
+        "next": "mfsuezs38k62d82qxdi6d",
+        "id": "z4xoef2p54mwhedrxgjmu",
         "x": 0,
         "y": 0,
         "topLevel": false,
-        "parent": "wg1k79lp3iin68829e1va"
+        "parent": "rm58ccz0wat7rolq7okma8"
       },
-      "gfkvhf7qcubjh4zabs7ve": {
+      "jsjl9erb6bpftq70ac5tza": {
         "opcode": "gdx_for_getForce",
         "inputs": {},
         "fields": {},
         "shadow": false,
         "next": null,
-        "id": "gfkvhf7qcubjh4zabs7ve",
+        "id": "jsjl9erb6bpftq70ac5tza",
         "x": 0,
         "y": 0,
         "topLevel": false,
-        "parent": "d0kg55tko8cxh7xisrukf7"
+        "parent": "z4xoef2p54mwhedrxgjmu"
       },
-      "oab6gve78j7l35zu3kjud": {
+      "eaaegy4fhiov2whvz2hlb": {
         "opcode": "math_number",
         "fields": {
           "NUM": {
@@ -196,19 +198,19 @@
         "inputs": {},
         "shadow": true,
         "next": null,
-        "id": "oab6gve78j7l35zu3kjud",
+        "id": "eaaegy4fhiov2whvz2hlb",
         "x": 0,
         "y": 0,
         "topLevel": false,
-        "parent": "6xkcbsmeu63iqfvcmaihtb"
+        "parent": "mfsuezs38k62d82qxdi6d"
       },
-      "6xkcbsmeu63iqfvcmaihtb": {
+      "mfsuezs38k62d82qxdi6d": {
         "opcode": "ev3_beep",
         "inputs": {
           "NOTE": {
             "name": "NOTE",
-            "block": "oab6gve78j7l35zu3kjud",
-            "shadow": "oab6gve78j7l35zu3kjud"
+            "block": "eaaegy4fhiov2whvz2hlb",
+            "shadow": "eaaegy4fhiov2whvz2hlb"
           },
           "DURATION": {
             "name": "DURATION",
@@ -219,23 +221,23 @@
         "fields": {},
         "shadow": false,
         "next": null,
-        "id": "6xkcbsmeu63iqfvcmaihtb",
+        "id": "mfsuezs38k62d82qxdi6d",
         "x": 0,
         "y": 0,
         "topLevel": false,
-        "parent": "d0kg55tko8cxh7xisrukf7"
+        "parent": "z4xoef2p54mwhedrxgjmu"
       }
     },
     "editable": true,
     "controlFlowIds": [
-      "tqlsdo8b422qf2x24mpsw",
-      "mbluxgkmticwdoczitcsap",
-      "uvary1dz18qzu9o30uj0b",
-      "28naz0mqvvhtlie99ws4h",
-      "o05ujq0n5klhu7yhr456hc",
-      "wg1k79lp3iin68829e1va",
-      "d0kg55tko8cxh7xisrukf7",
-      "6xkcbsmeu63iqfvcmaihtb"
+      "szptpbrv4vhj96fp2ib49b",
+      "dtlks7nihgdwy1tvuukcno",
+      "6pabfcouza9g9shnrvvf",
+      "d4fh7mg8akd0w90bzvdod",
+      "dv1bc1r1zq8hd7yzj3y6f",
+      "rm58ccz0wat7rolq7okma8",
+      "z4xoef2p54mwhedrxgjmu",
+      "mfsuezs38k62d82qxdi6d"
     ]
   }
 ]
