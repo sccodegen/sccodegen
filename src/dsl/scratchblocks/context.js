@@ -28,9 +28,12 @@ const buildInputsAndFields = (argDefs, resolved) => {
     const inputs = {};
     const fields = {};
     Object.entries(argDefs).forEach(([name, argDef], index) => {
-        if (argDef.menu) {
+        //if (argDef.menu) {
+        if (false) {
             // 菜单类参数放入 fields
             fields[name] = { id: undefined, name, value: resolved[index] };
+        } else if (argDef.type === "SUBSTACK") {
+            inputs[name] = { name, block: null, shadow: null };
         } else {
             // 其它参数作为输入积木
             inputs[name] = { name, block: resolved[index], shadow: resolved[index] };
@@ -79,6 +82,23 @@ export const makeBlockFn = (blockDef) => {
             stack.push(id, { opcode, inputs, fields, shadow: false, next: null }, parentId, false);
         } else {
             stack.pushControl(id, { opcode, inputs, fields, shadow: false, next: null });
+        }
+
+        for (const [name, argDef] of Object.entries(argDefs)) {
+            const value = values[Object.keys(argDefs).indexOf(name)];
+            if (argDef.type === "SUBSTACK" && typeof value === "function") {
+                const savedFlow = stack.controlFlowIds.slice();
+                stack.controlFlowIds = [];
+                value();
+                const firstSubstackId = stack.controlFlowIds[0] ?? null;
+                stack.controlFlowIds = savedFlow;
+                if (firstSubstackId && stack.blocks[firstSubstackId]) {
+                    inputs[name] = { name, block: firstSubstackId, shadow: null };
+                    stack.blocks[firstSubstackId].parent = id;
+                } else {
+                    inputs[name] = { name, block: null, shadow: null };
+                }
+            }
         }
 
         // 把作为输入的子积木的 parent 指向当前积木

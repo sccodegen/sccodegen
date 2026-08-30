@@ -1,17 +1,5 @@
-# ScCodeGen (SCG)
+import compiler from "../src/dsl/compiler.js";
 
-## 使用示例
-
-先安装该库
-
-```bash
-npm install sccodegen --save
-```
-
-### JS-like Scratch DSL
-
-```js
-import { compiler } from 'sccodegen';
 const code = `
 new event.whenflagclicked(() => {
     control.forever(() => {
@@ -31,6 +19,7 @@ new event.whenflagclicked(() => {
 });
 `;
 
-const stacks = compiler(code);
-console.log(stacks[0].blocks);
-```
+const result = compiler(code);
+console.log("Compiled blocks:", JSON.stringify(result, null, 2));
+const stack = result[0];
+const blocks = stack.blocks;

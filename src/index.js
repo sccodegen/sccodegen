@@ -1,5 +1,5 @@
-const main = function (config) {
-    ;
-};
+import compiler from "./dsl/compiler";
 
-export default main;
+export {
+    compiler
+}

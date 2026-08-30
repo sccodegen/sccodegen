@@ -1,5 +1,5 @@
 import { buildContext } from "./scratchblocks/context.js";
-import { math_number } from "./scratchblocks/inputs.js";
+import { math_number, text } from "./scratchblocks/inputs.js";
 
 const compiler = (code) => {
     globalThis.blocks = [];
