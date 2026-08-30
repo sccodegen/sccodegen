@@ -1,0 +1,22 @@
+{
+  "name": "sccodegen",
+  "version": "0.1.0",
+  "description": "An Agent to generate Scratch code",
+  "keywords": [],
+  "homepage": "https://github.com/sccodegen/sccodegen#readme",
+  "bugs": {
+    "url": "https://github.com/sccodegen/sccodegen/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sccodegen/sccodegen.git"
+  },
+  "license": "Apache-2.0",
+  "author": "XQYWorld",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node test/dsl_test.test.js"
+  },
+  "packageManager": "pnpm@10.32.1"
+}
