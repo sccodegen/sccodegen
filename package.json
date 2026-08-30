@@ -16,7 +16,7 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
-    "test": "node test/dsl_test.test.js && node test/scratch_dsl_samples.test.js"
+    "test": "node test/dsl_test.test.js && node test/scratch_dsl_samples.test.js && node test/puter-agent.test.js"
   },
   "dependencies": {
     "@heyputer/puter.js": "^2.6.2"
