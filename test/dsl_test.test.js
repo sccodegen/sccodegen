@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import compiler from "../src/dsl/compiler.js";
 
 const code = `
-new event_whenflagclicked(() => {
-    motion_movesteps(math_number(10));
-    motion_turnright(math_number(15));
-    motion_turnleft(motion_direction());
+new event.whenflagclicked(() => {
+    motion.movesteps(math_number(10));
+    motion.turnright(math_number(15));
+    motion.turnleft(motion.direction());
 });
 `;
 
