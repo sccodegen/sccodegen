@@ -1,4 +1,5 @@
 import { Agent } from "../base/index.js";
+import { callOpenAI } from "../utils/callOpenAI.js";
 import compiler from "../../dsl/compiler.js";
 
 /**
@@ -9,6 +10,8 @@ export class ScratchAgent extends Agent {
     constructor(config) {
         super(config);
         this.compiledBlocks = null;
+        this.systemPrompt = this.buildSystemPrompt();
+        this.ensureSystemPrompt();
         
         // 添加生成 DSL 代码工具
         this.addTool(
@@ -65,6 +68,55 @@ export class ScratchAgent extends Agent {
             },
             this.validateScratchCode.bind(this)
         );
+    }
+
+    buildSystemPrompt() {
+        return `You are an expert Scratch DSL code generator.
+
+Scratch DSL syntax rules:
+1. The DSL is JavaScript-like and uses namespace calls such as motion.movesteps(...), looks.say(...), control.if(...), and event.whenflagclicked(...).
+2. Every script must start with a hat block created by "new Namespace.HatName(..., () => { ... })". Common examples:
+   - new event.whenflagclicked(() => { ... });
+   - new event.whenkeypressed(text("space"), () => { ... });
+   - new event.whenbackdropswitchesto(text("backdrop1"), () => { ... });
+3. Inside the callback body, write Scratch statements as ordinary JavaScript function calls. Statements end with semicolons.
+4. Use a callback function as the last argument for blocks that contain a substack, such as:
+   - control.if(condition, () => { ... });
+   - control.repeat(math_number(10), () => { ... });
+   - control.forever(() => { ... });
+5. Numeric values should use math_number(value), for example: motion.movesteps(math_number(10));
+6. Text values should use quoted strings or text("...") when needed, for example: looks.say("hello");
+7. Boolean conditions should be expressions like operators.operator_gt(a, b), operators.operator_equals(a, b), or sensing.keypressed("w").
+8. Reporter blocks may be used as arguments inside other blocks, for example: looks.say(operators.operator_join("x=", motion.xposition()));
+9. Do not call a command block outside of an active stack. In practice, only call blocks inside a hat callback or another substack callback.
+10. Keep the generated DSL valid and compilable; if a block requires arguments, pass the required values in the right order.
+
+Your task is to:
+1. Understand the user's requirements.
+2. Generate valid Scratch DSL code that fulfills the requirements.
+3. Keep the syntax consistent with the rules above.
+4. Ensure the code compiles successfully.
+
+When you have generated the DSL code, call the generate_scratch_dsl tool, then compile_scratch_dsl, and finally validate_scratch_code.
+Always output the final compiled Scratch code in your response.`;
+    }
+
+    ensureSystemPrompt() {
+        const hasSystemPrompt = this.messages.some(
+            (message) => message.role === "system" && message.content === this.systemPrompt
+        );
+
+        if (!hasSystemPrompt) {
+            this.messages.unshift({ role: "system", content: this.systemPrompt });
+        }
+    }
+
+    async callAI(msg) {
+        this.ensureSystemPrompt();
+        this.pushMessage("user", msg);
+        const response = await callOpenAI(this.config, this.messages, this.tools);
+        this.messages.push(response);
+        return response;
     }
 
     /**
@@ -153,16 +205,6 @@ export class ScratchAgent extends Agent {
     async generateScratchCode(requirements) {
         console.log(`\n=== Scratch Code Generation Started ===`);
         console.log(`Requirements: ${requirements}\n`);
-
-        const systemPrompt = `You are an expert Scratch DSL code generator. Your task is to:
-1. Understand the user's requirements
-2. Generate valid Scratch DSL code that fulfills the requirements
-3. Make sure the code compiles correctly
-
-When you have generated the DSL code, call the generate_scratch_dsl tool, then compile_scratch_dsl tool to verify it works.
-Finally, call validate_scratch_code to ensure the code meets the requirements.
-
-Important: Always output the final compiled Scratch code in your response.`;
 
         try {
             const result = await this.run(requirements);

@@ -28,9 +28,7 @@ const buildInputsAndFields = (argDefs, resolved) => {
     const inputs = {};
     const fields = {};
     Object.entries(argDefs).forEach(([name, argDef], index) => {
-        //if (argDef.menu) {
-        if (false) {
-            // 菜单类参数放入 fields
+        if (argDef.menu || argDef.field) {
             fields[name] = { id: undefined, name, value: resolved[index] };
         } else if (argDef.type === "SUBSTACK") {
             inputs[name] = { name, block: null, shadow: null };

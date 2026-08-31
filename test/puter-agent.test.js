@@ -33,6 +33,29 @@ const originalPuter = globalThis.puter;
     assert.equal(result.content, 'Puter API ok');
     console.log('Puter API adapter test passed');
 
+    const promptAgent = new ScratchAgent({
+      apiType: 'puter',
+      model: 'gpt-5-nano',
+    });
+    let capturedMessages = null;
+    globalThis.puter = {
+      ai: {
+        chat: async (messages, options = {}) => {
+          capturedMessages = messages;
+          return {
+            message: {
+              role: 'assistant',
+              content: 'Prompt captured',
+            },
+          };
+        },
+      },
+    };
+
+    await promptAgent.callAI('Describe the DSL syntax for a moving sprite.');
+    assert.ok(capturedMessages.some((m) => m.role === 'system' && m.content.includes('new event.whenflagclicked')));
+    assert.ok(capturedMessages.some((m) => m.role === 'user' && m.content.includes('Describe the DSL syntax')));
+
     const generatedDsl = `
 new event.whenflagclicked(() => {
     motion.movesteps(math_number(10));

@@ -143,6 +143,20 @@ const exhaustiveResult = compileAndWrite(
     "all-defined-blocks",
     `new event.whenflagclicked(() => {\n${exhaustiveCalls.map((call) => `    ${call}`).join("\n")}\n});\n${exhaustiveHats.join("\n")}`
 );
+for (const stack of exhaustiveResult) {
+    for (const block of Object.values(stack.blocks)) {
+        if (["motion_setrotationstyle", "looks_changeeffectby", "looks_seteffectto", "looks_gotofrontback", "looks_goforwardbackwardlayers", "sound_seteffectto", "sound_changeeffectby"].includes(block.opcode)) {
+            for (const argName of ["STYLE", "EFFECT", "FRONT_BACK", "FORWARD_BACKWARD"]) {
+                if (Object.prototype.hasOwnProperty.call(block.inputs ?? {}, argName)) {
+                    assert.fail(`${block.opcode} incorrectly placed menu argument ${argName} in inputs`);
+                }
+                if (Object.prototype.hasOwnProperty.call(block.fields ?? {}, argName)) {
+                    assert.ok(typeof block.fields[argName].value !== "undefined");
+                }
+            }
+        }
+    }
+}
 const exhaustiveOpcodes = new Set(
     exhaustiveResult.flatMap((stack) => Object.values(stack.blocks).map((block) => block.opcode))
 );
