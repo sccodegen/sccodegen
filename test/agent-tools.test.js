@@ -1,166 +1,86 @@
 /**
- * Agent 功能测试
- * 测试 Agent 的 Tool Calling 机制和 Scratch 代码生成
+ * ScratchAgent 四工具测试：
+ * - 工具注册（read / write / edit / commit）
+ * - read/write/edit 操作虚拟文件系统（含目录约束）
+ * - edit 未命中/多匹配的处理
+ * - localStorage 持久化
  */
 
-import { Agent } from '../src/agent/base/index.js';
-import { ScratchAgent } from '../src/agent/core/index.js';
-import compiler from '../src/dsl/compiler.js';
+import assert from "node:assert/strict";
+import { ScratchAgent } from "../src/agent/core/index.js";
+import { VFS } from "../src/agent/core/vfs.js";
 
-// 测试 1: 基础 Agent 功能
-console.log("=== Test 1: Basic Agent Functionality ===\n");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const testAgent = new Agent({
-    base: 'https://api.openai.com/v1',
-    key: 'test-key',
-    model: 'gpt-4'
-});
-
-// 添加测试工具
-testAgent.addTool(
-    'add_numbers',
-    'Add two numbers together',
-    {
-        properties: {
-            a: { type: 'number', description: 'First number' },
-            b: { type: 'number', description: 'Second number' }
-        },
-        required: ['a', 'b']
-    },
-    async (args) => {
-        console.log(`Tool called: add_numbers with args: ${JSON.stringify(args)}`);
-        return { result: args.a + args.b };
-    }
-);
-
-console.log("✓ Agent created and tool added");
-console.log(`  Tools available: ${testAgent.tools.length}`);
-console.log(`  Tool name: ${testAgent.tools[0].function.name}\n`);
-
-// 测试 2: Scratch Agent 初始化
-console.log("=== Test 2: ScratchAgent Initialization ===\n");
-
-const scratchAgent = new ScratchAgent({
-    base: 'https://api.openai.com/v1',
-    key: 'test-key',
-    model: 'gpt-4'
-});
-
-console.log("✓ ScratchAgent created");
-console.log(`  Available tools: ${scratchAgent.tools.length}`);
-scratchAgent.tools.forEach((tool, index) => {
-    console.log(`  - ${index + 1}. ${tool.function.name}: ${tool.function.description}`);
-});
-console.log();
-
-// 测试 3: DSL 编译功能
-console.log("=== Test 3: DSL Compilation ===\n");
-
-const testDSLCode = `
-new event.whenflagclicked(() => {
-    motion.movesteps(math_number(100));
-    motion.turnright(math_number(90));
-    motion.movesteps(math_number(100));
-});
-`;
-
-try {
-    const compiledResult = compiler(testDSLCode);
-    console.log("✓ DSL compilation successful");
-    console.log(`  Number of stacks: ${compiledResult.length}`);
-    if (compiledResult.length > 0) {
-        console.log(`  First stack blocks: ${compiledResult[0].blocks.length}`);
-    }
-    console.log();
-} catch (error) {
-    console.log(`✗ DSL compilation failed: ${error.message}\n`);
+// 内存版 localStorage
+function memStorage() {
+    const map = new Map();
+    return {
+        getItem: (k) => (map.has(k) ? map.get(k) : null),
+        setItem: (k, v) => map.set(k, String(v)),
+        removeItem: (k) => map.delete(k),
+        _map: map,
+    };
 }
 
-// 测试 4: ScratchAgent 工具执行
-console.log("=== Test 4: ScratchAgent Tool Execution ===\n");
-
 (async () => {
-    try {
-        // 测试编译工具
-        const compileResult = await scratchAgent.compileScratchDSL({
-            dsl_code: testDSLCode
-        });
-        
-        if (compileResult.success) {
-            console.log("✓ compile_scratch_dsl tool executed successfully");
-            console.log(`  Blocks count: ${compileResult.blocks_count}`);
-            console.log(`  Message: ${compileResult.message}`);
-        } else {
-            console.log(`✗ compile_scratch_dsl failed: ${compileResult.error}`);
-        }
-        console.log();
+    // ---------- 1. 工具注册 ----------
+    const agent = new ScratchAgent({});
+    const names = agent.tools.map((t) => t.function.name);
+    assert.deepEqual(names.sort(), ["commit", "edit", "read", "write"]);
+    console.log("✓ 四个工具注册通过:", names.join(", "));
 
-        // 测试生成工具
-        const generateResult = await scratchAgent.generateScratchDSL({
-            description: "Simple square movement",
-            dsl_code: testDSLCode
-        });
-        
-        if (generateResult.success) {
-            console.log("✓ generate_scratch_dsl tool executed successfully");
-            console.log(`  Message: ${generateResult.message}`);
-        } else {
-            console.log(`✗ generate_scratch_dsl failed: ${generateResult.error}`);
-        }
-        console.log();
+    // ---------- 2. read/write/edit 基本操作 ----------
+    const r1 = await agent.toolWrite("/sprite1/code.js", "new event.whenflagclicked(() => {});");
+    assert.equal(r1.success, true);
+    const r2 = await agent.toolRead("/sprite1/code.js");
+    assert.equal(r2.success, true);
+    assert.ok(r2.content.includes("whenflagclicked"));
 
-        // 测试验证工具
-        const validateResult = await scratchAgent.validateScratchCode({
-            requirements: "Simple square movement",
-            compiled_result: JSON.stringify(compileResult)
-        });
-        
-        if (validateResult.success) {
-            console.log("✓ validate_scratch_code tool executed successfully");
-            console.log(`  Total stacks: ${validateResult.total_stacks}`);
-            console.log(`  Requirements met: ${validateResult.requirements_met}`);
-        } else {
-            console.log(`✗ validate_scratch_code failed: ${validateResult.error}`);
-        }
-        console.log();
+    // 目录约束：角色目录内只允许 code.js / costumes / sounds
+    const bad = await agent.toolWrite("/sprite1/wrong.js", "x");
+    assert.equal(bad.success, false);
+    assert.ok(bad.error.includes("只允许"));
+    const okCostume = await agent.toolWrite("/sprite1/costumes/cat.svg", "<svg/>");
+    assert.equal(okCostume.success, true);
 
-    } catch (error) {
-        console.error("Error during tool execution:", error.message);
-    }
+    // 顶层 README 允许（非角色目录）
+    const okReadme = await agent.toolWrite("/README.md", "说明");
+    assert.equal(okReadme.success, true);
+    const sprites = agent.vfs.sprites();
+    assert.deepEqual(sprites, ["sprite1"], "README 不应算作角色");
+    console.log("✓ read/write 与目录约束通过");
 
-    // 测试 5: 消息管理
-    console.log("=== Test 5: Message Management ===\n");
-    
-    const testAgent2 = new Agent({
-        base: 'https://api.openai.com/v1',
-        key: 'test-key',
-        model: 'gpt-4'
-    });
+    // edit 命中
+    const e1 = await agent.toolEdit("/sprite1/code.js", "whenflagclicked", "whenkeypressed");
+    assert.equal(e1.success, true);
+    assert.ok(agent.vfs.read("/sprite1/code.js").includes("whenkeypressed"));
 
-    testAgent2.pushMessage('user', 'Hello');
-    testAgent2.pushMessage('assistant', 'Hi there!');
-    testAgent2.pushMessage('user', 'How are you?');
+    // edit 未命中
+    const e2 = await agent.toolEdit("/sprite1/code.js", "不存在的文本", "x");
+    assert.equal(e2.success, false);
+    assert.ok(e2.matches === 0);
 
-    console.log("✓ Messages pushed to agent");
-    console.log(`  Total messages: ${testAgent2.messages.length}`);
-    testAgent2.messages.forEach((msg, index) => {
-        console.log(`  - Message ${index + 1}: role=${msg.role}, content=${msg.content}`);
-    });
-    console.log();
+    // edit 多匹配 → 返回 matches 并只替换第一处
+    await agent.toolWrite("/sprite1/code.js", "a a a");
+    const e3 = await agent.toolEdit("/sprite1/code.js", "a", "b");
+    assert.equal(e3.success, true);
+    assert.equal(agent.vfs.read("/sprite1/code.js"), "b a a");
+    console.log("✓ edit 命中/未命中/多匹配处理通过");
 
-    testAgent2.reset();
-    console.log("✓ Agent reset");
-    console.log(`  Messages after reset: ${testAgent2.messages.length}`);
-    console.log(`  Tools after reset: ${testAgent2.tools.length}\n`);
+    // ---------- 3. localStorage 持久化 ----------
+    const storage = memStorage();
+    const key = "scodegen:test:vfs";
+    const a1 = new ScratchAgent({ persistKey: key, storage, files: { "/cat/code.js": "// 初始" } });
+    assert.ok(storage._map.has(key), "写入后应立即持久化");
+    a1.vfs.write("/cat/code.js", "// 修改");
+    const a2 = new ScratchAgent({ persistKey: key, storage });
+    assert.equal(a2.vfs.read("/cat/code.js"), "// 修改", "重开后应从 localStorage 恢复");
+    assert.deepEqual(a2.vfs.sprites(), ["cat"]);
+    console.log("✓ VFS localStorage 持久化通过");
 
-    // 测试完成
-    console.log("=== All Tests Complete ===\n");
-    console.log("Summary:");
-    console.log("✓ Basic Agent functionality working");
-    console.log("✓ ScratchAgent initialized with tools");
-    console.log("✓ DSL compilation working");
-    console.log("✓ Tool execution working");
-    console.log("✓ Message management working");
-    console.log("✓ Agent reset working\n");
-
-})().catch(console.error);
+    console.log("\nScratchAgent 四工具全部测试通过 ✔");
+})().catch((e) => {
+    console.error("Agent 工具测试失败:", e);
+    process.exitCode = 1;
+});

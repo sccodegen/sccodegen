@@ -1,294 +1,213 @@
-# ScCodeGen Agent 智能体文档
+# ScCodeGen 智能体文档（重写版）
 
 ## 概述
 
-ScCodeGen 智能体是一个能够自动理解用户需求、生成 Scratch DSL 代码、编译成 Scratch 积木的 AI 驱动系统。
+ScCodeGen 智能体是一个运行在 Scratch 编辑器（scratch.mit.edu）里的 AI 编程智能体。
+它通过虚拟文件系统（VFS）管理 Scratch 作品：每个角色一个目录，角色的积木脚本用
+JS-like 的 Scratch DSL 写在 `code.js` 里；智能体把 DSL 编译成 Scratch 积木，
+经用户确认后应用到页面上的 Scratch VM（`unsafeWindow.vm`）。
+
+AI 后端使用 puter.js 匿名模式：无需任何配置与密钥，自动选择免费模型，
+请求速度控制在 10 RPM 以内以避免触发限速。
 
 ## 架构
 
 ```
 用户需求
-    ↓
-ScratchAgent (调用 AI)
-    ↓
-AI 生成 DSL 代码
-    ↓
-Tool Calling 循环:
-  - generate_scratch_dsl: 生成代码
-  - compile_scratch_dsl: 编译代码
-  - validate_scratch_code: 验证代码
-    ↓
-返回编译后的 Scratch 积木
+   ↓
+ScratchAgent（puter 匿名 AI，≤10 RPM，自动免费模型）
+   ↓  工具调用循环
+┌────────────────────────────────────────────┐
+│ read(path)     读取/列出虚拟文件系统        │
+│ write(path, content)  写入文件（自动建目录）│
+│ edit(path, oldText, newText)  文本替换      │
+│ commit(message) 全量编译 → 确认 → 应用 VM   │
+└────────────────────────────────────────────┘
+   ↓
+VFS（/<角色id>/code.js、costumes/、sounds/，localStorage 持久化）
+   ↓
+应用到 Scratch VM：vm.runtime.targets 解析 id → vm.setEditingTarget →
+   vm.editingTarget.blocks.createBlock（角色不存在自动创建）
+   ↓
+修改前/修改后快照切换 + 差异摘要
 ```
+
+另提供 `buildUserScript()`：把作品编译成可安装的用户脚本
+（单文件形态 + 源码/esbuild 配置形态，带头部，构建工具可选用 esbuild/tsup/vite）。
 
 ## 核心组件
 
-### 1. Agent 基类 (`src/agent/base/index.js`)
+### 1. Agent 基类（`src/agent/base/index.js`）
 
-提供基础的 Agent 框架，支持：
-- 消息管理
-- 工具注册和执行
-- Tool Calling 自动循环
-- OpenAI API 集成
-
-**关键方法：**
+环境无关的通用工具调用智能体：
 
 ```javascript
 import { Agent } from 'sccodegen';
 
-const agent = new Agent({
-    base: 'https://api.openai.com/v1',
-    key: 'your-api-key',
-    model: 'gpt-4-turbo'
-});
-
-// 注册工具
-agent.addTool(
-    'tool_name',
-    'Tool description',
-    { properties: {...}, required: [...] },
-    async (args) => { /* 工具实现 */ }
-);
-
-// 运行 Agent
-const result = await agent.run('用户需求');
+const agent = new Agent({ ai, systemPrompt: '...' });
+agent.addTool('name', '描述', { type: 'object', properties: {...}, required: [...] }, async (args) => {...});
+const reply = await agent.run('用户需求');
 ```
 
-### 2. ScratchAgent 智能体 (`src/agent/core/index.js`)
+- `addTool(name, description, parameters, fn)` 注册工具
+- `run(initialMessage)` 工具调用主循环（直到 AI 不再调用工具）
+- 消息与工具均为 OpenAI 风格，兼容 puter.ai.chat
 
-专门为 Scratch 代码生成设计，包含三个主要工具：
+### 2. PuterAI（`src/agent/utils/puter.js`）
 
-#### a) `generate_scratch_dsl`
-- **目的**：生成符合需求的 Scratch DSL 代码
-- **输入**：需求描述和生成的代码
-- **输出**：验证和返回代码
+puter.js 匿名模式 AI 调用层：
 
-#### b) `compile_scratch_dsl`
-- **目的**：将 DSL 代码编译成 Scratch 积木
-- **输入**：DSL 代码字符串
-- **输出**：编译结果和积木堆栈信息
-
-#### c) `validate_scratch_code`
-- **目的**：验证生成的代码是否满足需求
-- **输入**：原始需求和编译结果
-- **输出**：验证结果和最终的 Scratch 积木
-
-**关键方法：**
+- **匿名模式**：不传 `authToken` 时直接使用全局 `puter`（用户脚本头部
+  `@require https://js.puter.com/v2/` 引入），不调用 `setAuthToken`；
+- **自动免费模型**：`puter.ai.listModels()` 拉取模型表，优先选 `cost` 为 0 的
+  免费模型（偏好顺序见 `FREE_MODEL_PREFERENCE`），失败回退 `gpt-5-nano`；
+- **速度控制 ≤10 RPM**：默认 `minIntervalMs = 6000`，两次请求间隔至少 6 秒；
+  命中 429 限速时退避 30 秒重试（最多 3 次）。
 
 ```javascript
-import { ScratchAgent } from 'sccodegen';
-
-const agent = new ScratchAgent(config);
-
-// 生成 Scratch 代码
-const result = await agent.generateScratchCode('Create a sprite that moves around');
-
-// 访问结果
-console.log(result.compiled_blocks); // Scratch 积木结构
-console.log(result.response);        // AI 的最终响应
+const ai = new PuterAI();                       // 匿名 + 自动免费模型 + 10 RPM
+const msg = await ai.chat([{ role: 'user', content: 'hi' }], { tools });
 ```
+
+### 3. VFS（`src/agent/core/vfs.js`）
+
+虚拟文件系统，约定结构（**名字固定，不可改**）：
+
+```
+/<角色id>/code.js          角色的积木脚本（JS-like Scratch DSL）
+/<角色id>/costumes/*       角色素材
+/<角色id>/sounds/*         角色声音
+```
+
+- 根目录下一级目录 = 角色，目录名 = 角色 id（如 `Sprite1`、`player`）；
+- 角色目录内只允许 `code.js`、`costumes/`、`sounds/`，写其他路径会报错；
+- 可选 localStorage 持久化（`persistKey`），刷新后自动恢复；
+- `sprites()` 返回角色列表，`tree()/restore()` 导出/恢复整棵树。
+
+### 4. ScratchAgent（`src/agent/core/index.js`）
+
+四个工具（LLM 可调用）：
+
+#### a) `read(path)`
+读取文件内容或列出目录。
+
+#### b) `write(path, content)`
+写入文件，自动创建目录。角色代码必须写到 `/<角色id>/code.js`。
+
+#### c) `edit(path, oldText, newText)`
+文本替换。`oldText` 需与文件内容完全一致；未命中返回错误，多匹配只替换第一处
+并返回匹配次数。
+
+#### d) `commit(message)`
+完整流程：
+1. **全量编译**每个角色的 `code.js`（DSL → 积木堆栈）；
+2. 编译失败 → 返回**错误信息和位置**（角色、文件、行号、列号）；
+3. 编译成功 → 检查 `unsafeWindow.vm`，**不存在则直接结束运行**；
+4. 展示汇总（每个角色 N 个脚本 / M 个积木），**等待用户确认**；
+5. 确认后应用：`vm.runtime.targets` 解析角色 id → `vm.setEditingTarget(targetId)`
+   → 遍历积木列表调用 `vm.editingTarget.blocks.createBlock(block)`；
+   角色不存在则**自动创建**（优先复制现有角色，兜底用舞台素材构造）；
+6. 应用前后各拍一份该角色 blocks 快照，返回**差异摘要**
+   （新增/删除/修改的积木数与 opcode 列表）。
+
+#### 版本切换
+
+`commit` 成功后可用以下方法切换"修改前/修改后"对比：
+
+```javascript
+agent.getHistory();                          // 提交历史（含差异摘要）
+agent.switchVersion(historyId, 'before');    // 切到修改前
+agent.switchVersion(historyId, 'after');     // 切到修改后
+```
+
+切换通过清空并 `createBlock` 恢复快照实现，只影响被提交的角色。
+
+#### 编译为用户脚本
+
+```javascript
+const built = await agent.buildUserScript();   // 未指定工具时会列出优缺点并询问
+const built = await agent.buildUserScript({ bundler: 'esbuild' });
+// built.singleFile  —— 单文件用户脚本（头部 + 内联编译结果 + 自动应用运行时）
+// built.sources    —— 入口源码 + 所选构建工具配置 + 构建说明
+```
+
+仓库构建命令：`npm run build:userscript`（esbuild 打包 `src/userscript/main.js`
+→ `dist/scodegen.user.js`，带 Tampermonkey 头部）。
 
 ## 使用示例
 
-### 基础用法
-
 ```javascript
-import { ScratchAgent } from 'sccodegen';
+import { ScratchAgent, VFS } from 'sccodegen';
 
-const config = {
-    base: process.env.OPENAI_API_BASE || 'https://api.openai.com/v1',
-    key: process.env.OPENAI_API_KEY,
-    model: 'gpt-4-turbo'
-};
+const vfs = new VFS();
+vfs.write('/Sprite1/code.js', `
+new event.whenflagclicked(() => {
+    control.forever(() => {
+        motion.movesteps(math_number(10));
+        motion.turnright(math_number(15));
+    });
+});
+`);
 
-const agent = new ScratchAgent(config);
+const agent = new ScratchAgent({
+    vfs,
+    // vm: unsafeWindow.vm，浏览器用户脚本环境自动获取
+    confirmApply: async (summary) => window.confirm(summary),
+});
 
-const result = await agent.generateScratchCode(
-    'Make a cat sprite that moves in a square'
-);
-
-if (result.success) {
-    console.log('Generated code!');
-    console.log(result.compiled_blocks);
-}
+const result = await agent.commit('小猫转圈');
+console.log(result.diffText);
 ```
 
-### 高级用法
+完整示例见 `examples/agent-demo.js` 与 `examples/complete-integration.js`。
 
-```javascript
-import { Agent } from 'sccodegen';
-import { compiler } from 'sccodegen';
+## DSL 语法要点
 
-// 创建自定义 Agent
-const agent = new Agent(config);
-
-// 添加自定义工具
-agent.addTool(
-    'analyze_code',
-    'Analyze and optimize Scratch code',
-    {
-        properties: {
-            code: { type: 'string', description: 'Scratch code to analyze' }
-        },
-        required: ['code']
-    },
-    async (args) => {
-        // 自定义逻辑
-        return { analysis: '...' };
-    }
-);
-
-// 运行 Agent
-const result = await agent.run('用户需求');
-```
-
-## Tool Calling 流程
-
-Agent 使用 Tool Calling 实现多轮对话和智能工具调用：
-
-1. **用户发送需求** → Agent 添加到消息历史
-2. **调用 OpenAI API** → 传递已定义的工具
-3. **AI 返回响应** → 可能包含工具调用请求
-4. **检查是否有 tool_calls** → 如果有，执行对应工具
-5. **将工具结果返回给 AI** → 继续对话
-6. **重复步骤 2-5** → 直到 AI 不再调用工具
-7. **返回最终结果** → 用户得到完整的 Scratch 代码
-
-## API 参考
-
-### Agent 类
-
-#### 构造函数
-```javascript
-new Agent(config)
-```
-- `config`: 配置对象
-  - `base`: OpenAI API 基础 URL
-  - `key`: API 密钥
-  - `model`: 使用的模型名称
-
-#### 方法
-
-**addTool(name, description, params, implementation)**
-- 注册一个工具供 Agent 使用
-- `params`: 参数定义 `{ properties: {...}, required: [...] }`
-- `implementation`: 异步函数，处理工具调用
-
-**pushMessage(role, content)**
-- 手动添加消息到对话历史
-
-**run(initialMessage)**
-- 启动 Tool Calling 循环
-- 返回最终的响应文本
-
-**reset()**
-- 清空消息和工具列表
-
-### ScratchAgent 类
-
-继承自 `Agent`，添加额外方法：
-
-**generateScratchCode(requirements)**
-- 完整的代码生成流程
-- 返回 `{ success, requirements, response, compiled_blocks }`
-
-**getCompiledBlocks()**
-- 获取最后编译的 Scratch 积木
-
-**getConversationHistory()**
-- 获取完整的对话历史
+1. 每个脚本以 hat 积木开头：`new event.whenflagclicked(() => {...})`；
+2. **hat 的字段参数直接传字符串**（按键名、广播名、背景名等）：
+   `new event.whenkeypressed("w", ...)`、`new event.whenbroadcastreceived("start", ...)`；
+   不要用 `text()` 包 hat 参数（`text()/math_number()` 只能在活动栈内使用）；
+3. 子栈用回调：`control.forever(() => {...})`、`control.repeat(math_number(10), ...)`；
+4. 数字 `math_number(10)`、文本 `text("...")`；
+5. 条件：`operators.operator_gt(a, b)`、`sensing.touchingobject("_edge_")`、
+   `sensing.keypressed(text("w"))`；
+6. reporter 可嵌套：`looks.say(operators.operator_join("x=", motion.xposition()))`；
+7. 命令积木只能在 hat 或子栈回调里调用。
 
 ## 测试
-
-运行测试套件：
 
 ```bash
 npm test
 ```
 
-运行智能体测试：
+覆盖：DSL 编译（原有）、PuterAI（匿名/免费模型/限速/429 退避/工具循环）、
+四工具（VFS 读写编辑/约束/持久化）、commit 全流程（编译错误定位/确认/应用/
+自动创建角色/版本切换/VM 缺失中止）、buildUserScript。
+
+## 构建用户脚本
 
 ```bash
-node test/agent-tools.test.js
+npm run build:userscript    # → dist/scodegen.user.js
 ```
 
-## 环境变量
+产物安装到 Tampermonkey 后，打开 https://scratch.mit.edu/projects/ 任意作品页，
+右下角出现 ScCodeGen 面板：描述需求 → AI 智能体读写 VFS 并 commit → 积木应用到作品。
 
-- `OPENAI_API_BASE`: OpenAI API 基础 URL（默认：https://api.openai.com/v1）
-- `OPENAI_API_KEY`: OpenAI API 密钥
-- `OPENAI_MODEL`: 使用的模型（默认：gpt-4-turbo-preview）
+## 环境与配置
+
+- 无配置即用：puter.js 匿名模式（`@require https://js.puter.com/v2/`）；
+- `config.model` 可指定模型；`config.minIntervalMs` 调整限速（默认 6000ms）；
+- `config.persistKey` 自定义 VFS 持久化键；`config.storage` 注入 storage；
+- `config.confirmApply` 注入确认回调；`config.askUser` 注入构建工具选择回调；
+- 测试/嵌入场景用 `config.vm` 显式注入 Scratch VM；`config.puter` 注入 puter。
 
 ## 错误处理
 
-Agent 会返回错误信息，可以检查 `success` 字段：
-
-```javascript
-const result = await agent.generateScratchCode('需求');
-
-if (!result.success) {
-    console.error('生成失败:', result.error);
-} else {
-    console.log('生成成功!');
-}
-```
-
-## 扩展 Agent
-
-创建自定义 Agent 来添加额外功能：
-
-```javascript
-import { Agent } from 'sccodegen';
-
-class MyCustomAgent extends Agent {
-    constructor(config) {
-        super(config);
-        
-        // 添加自定义工具
-        this.addTool(
-            'custom_tool',
-            'My custom tool',
-            { properties: {...}, required: [...] },
-            this.myToolImplementation.bind(this)
-        );
-    }
-
-    async myToolImplementation(args) {
-        // 实现自定义逻辑
-        return { result: '...' };
-    }
-
-    async run(initialMessage) {
-        // 自定义运行逻辑
-        return super.run(initialMessage);
-    }
-}
-```
-
-## 限制和注意事项
-
-1. **API 调用费用**：使用 OpenAI API 会产生费用
-2. **Token 限制**：模型的最大 token 数限制了代码复杂度
-3. **网络依赖**：需要网络连接来调用 OpenAI API
-4. **异步操作**：所有 API 调用都是异步的，需要 await
-
-## 常见问题
-
-**Q: 如何离线使用？**
-A: 可以实现本地 LLM（如 Ollama、LLaMA）的适配器
-
-**Q: 如何提高生成代码的质量？**
-A: 
-- 使用更高级的模型（如 gpt-4）
-- 优化系统提示词
-- 提供更详细的需求描述
-
-**Q: 支持哪些版本的 Scratch？**
-A: 目前主要支持 Scratch 3.0 的积木结构
+- commit 编译失败：`{ success:false, errors:[{sprite, file, line, column, error}], errorText }`；
+- VM 不存在：`{ success:false, aborted:true, error:'Scratch VM 不存在…' }`；
+- 用户取消：`{ success:false, cancelled:true }`；
+- 应用失败：`{ success:false, error:'应用角色 X 失败：…' }`。
 
 ## 许可证
 
 Apache-2.0
-
-## 贡献
-
-欢迎提交 Issues 和 Pull Requests！

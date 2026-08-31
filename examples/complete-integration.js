@@ -1,280 +1,83 @@
 /**
- * 完整集成示例
- * 展示如何端到端使用 ScratchAgent 生成 Scratch 代码
+ * 完整集成示例：puter 匿名模式 + buildUserScript
+ *
+ * 演示：
+ *  1. PuterAI 匿名模式：不配置任何 key，自动选择免费模型，≤10 RPM
+ *  2. 把 VFS 中的作品编译为用户脚本（单文件 + esbuild 源码/配置）
+ *
+ * 注意：真实 AI 对话需要浏览器里的 puter.js（用户脚本头部 @require
+ * https://js.puter.com/v2/）。本示例用注入的假 puter 演示调用链，
+ * 真实环境把 config.puter 去掉即可。
  */
 
-import { ScratchAgent } from '../src/index.js';
+import { ScratchAgent, PuterAI, VFS } from "../src/index.js";
 
-/**
- * 示例场景：使用 AI 智能体生成 Scratch 代码
- */
-
-// 配置（从环境变量或默认值）
-const config = {
-    base: process.env.OPENAI_API_BASE || 'https://api.openai.com/v1',
-    key: process.env.OPENAI_API_KEY || 'test-key',
-    model: process.env.OPENAI_MODEL || 'gpt-4-turbo'
+// ---------- 假 puter（演示匿名调用链；真实环境由 @require 提供） ----------
+const fakePuter = {
+    ai: {
+        listModels: async () => [
+            { id: "gpt-5-nano", provider: "openai", cost: { input: 0, output: 0 } },
+            { id: "claude-opus-4-8", provider: "claude", cost: { input: 500, output: 2500 } },
+        ],
+        chat: async (messages, options) => {
+            console.log(`[puter.ai.chat] model=${options.model}, tools=${(options.tools || []).length}`);
+            return {
+                message: {
+                    role: "assistant",
+                    content:
+                        "（演示）我会先在 VFS 里创建角色并编写 code.js，然后调用 commit 应用到作品。",
+                },
+            };
+        },
+    },
 };
 
-// 示例需求
-const scenarios = [
-    {
-        name: '基础运动',
-        requirement: '创建一个程序，使小猫精灵前进100步，然后右转90度，再前进100步'
-    },
-    {
-        name: '条件判断',
-        requirement: '创建一个程序，让小猫根据按下的按键做出不同的动作：按"W"向上移动，按"S"向下移动'
-    },
-    {
-        name: '循环结构',
-        requirement: '创建一个程序，让小猫持续在舞台上移动，每次移动10步，然后转向'
-    }
-];
-
-/**
- * 本地演示（不调用真实 API）
- */
-async function localDemo() {
-    console.log('╔════════════════════════════════════════════════╗');
-    console.log('║   ScCodeGen Agent - 本地集成演示              ║');
-    console.log('╚════════════════════════════════════════════════╝\n');
-
-    const agent = new ScratchAgent(config);
-
-    // 演示 DSL 代码
-    const demoCode = `
-    new event.whenflagclicked(() => {
-        control.forever(() => {
-            motion.movesteps(math_number(10));
-            motion.turnright(math_number(15));
-        });
-    });
-    `;
-
-    console.log('【场景 1】基础 DSL 编译演示\n');
-    console.log('输入代码：');
-    console.log(demoCode);
-    console.log('\n处理中...\n');
-
-    try {
-        // 编译 DSL
-        const compileResult = await agent.compileScratchDSL({
-            dsl_code: demoCode
-        });
-
-        if (compileResult.success) {
-            console.log('✓ 编译成功！');
-            console.log(`  · 生成的堆栈数: ${compileResult.blocks_count}`);
-            console.log(`  · 状态: ${compileResult.message}`);
-            
-            // 显示编译后的块信息
-            console.log('\n  编译后的块信息:');
-            compileResult.blocks.forEach(block => {
-                console.log(`    - ${block.summary}`);
-            });
-        } else {
-            console.log('✗ 编译失败:', compileResult.error);
-        }
-    } catch (error) {
-        console.error('错误:', error.message);
-    }
-
-    console.log('\n---\n');
-
-    // 演示代码生成
-    console.log('【场景 2】代码生成演示\n');
-    
-    const genResult = await agent.generateScratchDSL({
-        description: '小猫运动程序',
-        dsl_code: demoCode
-    });
-
-    if (genResult.success) {
-        console.log('✓ 代码生成成功！');
-        console.log(`  · 状态: ${genResult.message}`);
-    }
-
-    console.log('\n---\n');
-
-    // 演示代码验证
-    console.log('【场景 3】代码验证演示\n');
-
-    let validateResult;
-    try {
-        validateResult = await agent.validateScratchCode({
-            requirements: '小猫循环运动'
-        });
-    } catch (error) {
-        validateResult = { success: false, error: error.message };
-    }
-
-    if (validateResult.success) {
-        console.log('✓ 代码验证成功！');
-        console.log(`  · 总堆栈数: ${validateResult.total_stacks}`);
-        console.log(`  · 需求满足: ${validateResult.requirements_met ? '是' : '否'}`);
-    } else {
-        console.log('✗ 验证失败:', validateResult.error);
-    }
-
-    console.log('\n---\n');
-
-    // 演示完整流程
-    console.log('【场景 4】Agent 工具链演示\n');
-    console.log('Agent 拥有以下工具:');
-    agent.tools.forEach((tool, index) => {
-        console.log(`  ${index + 1}. ${tool.function.name}`);
-        console.log(`     ${tool.function.description}`);
-    });
-
-    console.log('\n---\n');
-
-    // 演示消息管理
-    console.log('【场景 5】对话历史演示\n');
-    
-    agent.pushMessage('user', '生成一个让小猫移动的程序');
-    agent.pushMessage('assistant', '我会为你生成这样的程序');
-    agent.pushMessage('user', '使用循环结构');
-
-    console.log('对话历史:');
-    agent.messages.forEach((msg, index) => {
-        console.log(`  ${index + 1}. [${msg.role.toUpperCase()}] ${msg.content}`);
-    });
-
-    console.log('\n---\n');
-
-    // 演示 Agent 重置
-    console.log('【场景 6】Agent 状态管理\n');
-    console.log('重置前:');
-    console.log(`  · 消息数: ${agent.messages.length}`);
-    console.log(`  · 工具数: ${agent.tools.length}`);
-
-    agent.reset();
-    
-    console.log('\n重置后:');
-    console.log(`  · 消息数: ${agent.messages.length}`);
-    console.log(`  · 工具数: ${agent.tools.length}`);
-
-    console.log('\n✓ 所有演示场景完成!\n');
-}
-
-/**
- * 完整流程演示（需要真实 API）
- */
-async function fullDemo() {
-    console.log('╔════════════════════════════════════════════════╗');
-    console.log('║   ScCodeGen Agent - 完整 API 演示             ║');
-    console.log('╚════════════════════════════════════════════════╝\n');
-
-    console.log('⚠️  此演示需要有效的 OpenAI API 密钥\n');
-
-    if (!process.env.OPENAI_API_KEY) {
-        console.log('未找到 OPENAI_API_KEY 环境变量');
-        console.log('请设置: export OPENAI_API_KEY=your-key\n');
-        return;
-    }
-
-    const agent = new ScratchAgent(config);
-
-    for (const scenario of scenarios) {
-        console.log(`【${scenario.name}】\n`);
-        console.log(`需求: ${scenario.requirement}\n`);
-
-        try {
-            const result = await agent.generateScratchCode(scenario.requirement);
-            
-            if (result.success) {
-                console.log('✓ 生成成功！\n');
-                console.log('AI 响应:');
-                console.log(result.response);
-                
-                if (result.compiled_blocks) {
-                    console.log('\n编译后的积木:');
-                    console.log(JSON.stringify(result.compiled_blocks, null, 2));
-                }
-            } else {
-                console.log('✗ 生成失败:', result.error);
-            }
-        } catch (error) {
-            console.error('错误:', error.message);
-        }
-
-        console.log('\n' + '='.repeat(50) + '\n');
-
-        // 重置 Agent
-        agent.reset();
-    }
-}
-
-/**
- * 工具测试演示
- */
-async function toolDemo() {
-    console.log('╔════════════════════════════════════════════════╗');
-    console.log('║   ScratchAgent 工具单元测试                    ║');
-    console.log('╚════════════════════════════════════════════════╝\n');
-
-    const agent = new ScratchAgent(config);
-
-    // 测试用例
-    const testCases = [
-        {
-            name: '简单移动',
-            code: `
-            new event.whenflagclicked(() => {
-                motion.movesteps(math_number(50));
-            });
-            `
-        },
-        {
-            name: '复杂循环',
-            code: `
-            new event.whenflagclicked(() => {
-                control.repeat(math_number(4), () => {
-                    motion.movesteps(math_number(100));
-                    motion.turnright(math_number(90));
-                });
-            });
-            `
-        }
-    ];
-
-    for (const testCase of testCases) {
-        console.log(`测试: ${testCase.name}\n`);
-        
-        try {
-            const result = await agent.compileScratchDSL({
-                dsl_code: testCase.code
-            });
-
-            if (result.success) {
-                console.log('✓ 编译成功');
-                console.log(`  块数: ${result.blocks_count}`);
-                result.blocks.forEach(b => console.log(`  · ${b.summary}`));
-            } else {
-                console.log('✗ 编译失败:', result.error);
-            }
-        } catch (error) {
-            console.error('错误:', error.message);
-        }
-
-        console.log();
-    }
-}
-
-// 主程序
 async function main() {
-    const args = process.argv.slice(2);
-    
-    if (args.includes('--full')) {
-        await fullDemo();
-    } else if (args.includes('--tools')) {
-        await toolDemo();
-    } else {
-        await localDemo();
-    }
+    console.log("=== 完整集成：puter 匿名 + 编译为用户脚本 ===\n");
+
+    // VFS：一个角色的作品
+    const vfs = new VFS();
+    vfs.write("/Cat/code.js", `
+new event.whenflagclicked(() => {
+    control.forever(() => {
+        motion.movesteps(math_number(10));
+        control.if(sensing.touchingobject("_edge_"), () => {
+            motion.turnright(math_number(90));
+        });
+    });
+});
+`);
+
+    // 智能体：puter 匿名模式（显式注入假 puter；真实环境去掉 puter 配置即可）
+    const ai = new PuterAI({ puter: fakePuter, minIntervalMs: 0 });
+    const agent = new ScratchAgent({
+        ai,
+        vfs,
+        confirmApply: async () => true, // 演示直接确认
+        vm: null, // 演示环境没有 Scratch VM，commit 会在应用前结束
+    });
+
+    // 1) AI 对话（匿名 + 自动免费模型）
+    await agent.callAI();
+
+    // 2) commit：VM 不存在 → 直接结束运行（符合"unsafeWindow.vm 不存在则结束"）
+    const commit = await agent.commit("演示提交");
+    console.log("\ncommit 结果：", commit.success ? "成功" : "失败");
+    if (!commit.success) console.log("  原因：", commit.errorText || commit.error);
+
+    // 3) 编译为用户脚本（esbuild：单文件 + 源码/配置）
+    const built = await agent.buildUserScript({ bundler: "esbuild" });
+    console.log("\n用户脚本产物：");
+    console.log(`  · 单文件（可安装到 Tampermonkey）：${built.singleFile.length} 字符`);
+    console.log(`  · 头部首行：${built.singleFile.split("\n")[0]}`);
+    console.log(`  · 运行时含 VM 检查：${built.singleFile.includes("unsafeWindow.vm 不存在")}`);
+    console.log(`  · esbuild 配置已生成：${built.sources.config.length} 字符`);
+
+    console.log("\n真实环境用法：安装 dist/scodegen.user.js 到 Tampermonkey，");
+    console.log("打开 scratch.mit.edu 作品页，面板描述需求即可（puter 匿名，≤10 RPM）。");
 }
 
-main().catch(console.error);
-
-export { localDemo, fullDemo, toolDemo };
+main().catch((e) => {
+    console.error("集成演示失败：", e);
+    process.exit(1);
+});

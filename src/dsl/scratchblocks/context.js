@@ -1,14 +1,9 @@
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { BlocksStack } from "../blocksStack/blocksStack.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-// 积木定义仅作为数据源，保持原样
-const blocksDef = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "scratch_blocks.json"), "utf8")
-);
+// 积木定义仅作为数据源，保持原样。
+// 使用静态 JSON 导入而非 node:fs：Node 22+ 原生支持，vite/tsup/esbuild 打包时自动内联，
+// 因此同一份 DSL 编译器既能在 Node 里运行，也能被打进浏览器用户脚本。
+import blocksDef from "./scratch_blocks.json" with { type: "json" };
 
 const genId = () =>
     Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);

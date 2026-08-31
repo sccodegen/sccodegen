@@ -16,9 +16,16 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
-    "test": "node test/dsl_test.test.js && node test/scratch_dsl_samples.test.js && node test/puter-agent.test.js"
+    "test": "node test/dsl_test.test.js && node test/scratch_dsl_samples.test.js && node test/puter-agent.test.js && node test/agent-tools.test.js && node test/smoke.test.js",
+    "build:userscript": "node scripts/build-userscript.mjs"
   },
   "dependencies": {
     "@heyputer/puter.js": "^2.6.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }
